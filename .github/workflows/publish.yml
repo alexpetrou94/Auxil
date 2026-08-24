@@ -9,6 +9,8 @@ on:
 
 env:
   DOTNET_VERSION: '10.0.x'
+  GITHUB_PACKAGES_URL: https://nuget.pkg.github.com/alexpetrou94/index.json
+  PACKAGE_NAME: Auxil
 
 jobs:
   build:
@@ -33,6 +35,55 @@ jobs:
 
       - name: Test
         run: dotnet test Auxil.sln --configuration Release --no-build --verbosity normal
+
+  publish-ci:
+    if: github.ref == 'refs/heads/production' && github.event_name == 'push'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Restore
+        run: dotnet restore Auxil.sln
+
+      - name: Build
+        run: dotnet build Auxil.sln --configuration Release --no-restore
+
+      - name: Generate CI version
+        id: version
+        shell: bash
+        run: |
+          MAJOR=$(grep -oP '(?<=<Version>)[0-9]+' Auxil/Auxil.csproj | head -n 1)
+          if [[ -z "$MAJOR" ]]; then
+            echo "Could not read the major version from Auxil/Auxil.csproj" >&2
+            exit 1
+          fi
+
+          VERSION="${MAJOR}.$(date +%Y).$(date +%j).${GITHUB_RUN_NUMBER}"
+          echo "CI version: ${VERSION}"
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+
+      - name: Pack
+        run: dotnet pack Auxil/Auxil.csproj --configuration Release --no-build --output ./packages /p:Version=${{ steps.version.outputs.version }}
+
+      - name: Publish to GitHub Packages
+        run: |
+          dotnet nuget add source "$GITHUB_PACKAGES_URL" \
+            --name github \
+            --username "${{ github.actor }}" \
+            --password "${{ secrets.GITHUB_TOKEN }}" \
+            --store-password-in-clear-text
+          dotnet nuget push ./packages/*.nupkg --source github --skip-duplicate
 
   publish:
     if: startsWith(github.ref, 'refs/tags/v')
@@ -67,9 +118,67 @@ jobs:
 
       - name: Publish to GitHub Packages
         run: |
-          dotnet nuget add source "https://nuget.pkg.github.com/alexpetrou94/index.json" \
+          dotnet nuget add source "$GITHUB_PACKAGES_URL" \
             --name github \
             --username "${{ github.actor }}" \
             --password "${{ secrets.GITHUB_TOKEN }}" \
             --store-password-in-clear-text
           dotnet nuget push ./packages/*.nupkg --source github --skip-duplicate
+
+      - name: Remove temporary CI versions
+        uses: actions/github-script@v7
+        env:
+          STABLE_VERSION: ${{ steps.version.outputs.version }}
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const packageType = 'nuget';
+            const packageName = process.env.PACKAGE_NAME;
+            const stableVersion = process.env.STABLE_VERSION;
+
+            try {
+              const versions = await github.paginate(
+                github.rest.packages.getAllPackageVersionsForPackageOwnedByUser,
+                {
+                  username: context.repo.owner,
+                  package_type: packageType,
+                  package_name: packageName,
+                  per_page: 100,
+                },
+              );
+
+              const temporaryVersions = versions.filter((version) => {
+                const parts = version.name.split('.');
+                return version.name !== stableVersion
+                  && parts.length === 4
+                  && parts.every((part) => /^\d+$/.test(part));
+              });
+
+              core.info(`Found ${temporaryVersions.length} temporary CI versions.`);
+              const failures = [];
+
+              for (const version of temporaryVersions) {
+                try {
+                  await github.rest.packages.deletePackageVersionForUser({
+                    username: context.repo.owner,
+                    package_type: packageType,
+                    package_name: packageName,
+                    package_version_id: version.id,
+                  });
+                  core.info(`Deleted ${version.name}.`);
+                } catch (error) {
+                  failures.push(`${version.name}: ${error.message}`);
+                  core.error(`Failed to delete ${version.name}: ${error.message}`);
+                }
+              }
+
+              if (failures.length > 0) {
+                throw new Error(`Failed to delete ${failures.length} temporary CI version(s).`);
+              }
+            } catch (error) {
+              if (error.status === 404) {
+                core.info('Auxil has no package versions to clean up.');
+                return;
+              }
+              throw error;
+            }
