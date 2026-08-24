@@ -1,0 +1,41 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>net10.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <LangVersion>latestmajor</LangVersion>
+        <GenerateDocumentationFile>true</GenerateDocumentationFile>
+
+        <!-- NuGet Package Metadata -->
+        <PackageId>Auxil</PackageId>
+        <Version>0.1.0</Version>
+        <Authors>UPhoricStudios</Authors>
+        <Company>UPhoricStudios</Company>
+        <Description>A modern .NET utility library: fluent string manipulation, text analysis, result types, semantic versions, async CLI execution, JSON helpers, regex building, fuzzy search, dummy data, and code generation. Built on .NET 10 with C# 14 extension members.</Description>
+        <PackageTags>utility;extensions;cli;json;regex;dummy;lorem;fuzzy;semver;text;codegen</PackageTags>
+        <RepositoryUrl>https://github.com/alexpetrou94/Auxil</RepositoryUrl>
+        <RepositoryType>git</RepositoryType>
+        <PackageLicenseExpression>MIT</PackageLicenseExpression>
+        <PackageReadmeFile>README.md</PackageReadmeFile>
+        <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
+        <IncludeSymbols>true</IncludeSymbols>
+        <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+        <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <None Include="..\README.md" Pack="true" PackagePath="\" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <PackageReference Include="FastCloner" Version="3.5.5" />
+        <PackageReference Include="JetBrains.Annotations" Version="2026.2.0" />
+        <PackageReference Include="Nager.Country" Version="4.7.1" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <InternalsVisibleTo Include="Auxil.Tests" />
+    </ItemGroup>
+
+</Project>
