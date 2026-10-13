@@ -9,7 +9,7 @@
 
         <!-- NuGet Package Metadata -->
         <PackageId>Auxil</PackageId>
-        <Version>0.1.0</Version>
+        <Version>0.2.0</Version>
         <Authors>UPhoricStudios</Authors>
         <Company>UPhoricStudios</Company>
         <Description>A modern .NET utility library: fluent string manipulation, text analysis, result types, semantic versions, async CLI execution, JSON helpers, regex building, fuzzy search, dummy data, and code generation. Built on .NET 10 with C# 14 extension members.</Description>

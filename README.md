@@ -3,7 +3,7 @@
 Auxil is a .NET utility library for shared application code. It collects the
 small pieces that are useful across projects, including extension methods,
 common result and version types, text and JSON helpers, process execution,
-file watching, and code generation.
+file watching, code generation, and grid pathfinding.
 
 The library targets .NET 10 and uses C# 14. Its API is made up of ordinary
 types and extension members, so projects can use the parts they need without
@@ -16,12 +16,12 @@ using Auxil.Extensions;
 
 string title = "hello world".ToPascalCase();
 int wordCount = "hello world".CountWords();
-```
 
 ## Installation
 
-Auxil is available from GitHub Packages. Configure the package source with a
-Personal Access Token that has the `read:packages` scope:
+Auxil is available from GitHub Packages. GitHub's NuGet registry requires
+authentication even for public packages. Configure the package source with a
+Personal Access Token (classic) that has the `read:packages` scope:
 
 ```powershell
 dotnet nuget add source "https://nuget.pkg.github.com/alexpetrou94/index.json" `
