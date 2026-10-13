@@ -98,30 +98,13 @@ public sealed class FileWatcher : IDisposable
     {
         lock (_lifecycleLock)
         {
-            if (_disposed || _watcher is null)
+            if (_disposed)
             {
                 return;
             }
-
-            _watcher.EnableRaisingEvents = false;
-            _watcher.Dispose();
-            _watcher = null;
-
-            _stopping = true;
-            _signal.Set();
-
-            Thread? dispatcher = _dispatcher;
-
-            if (dispatcher is not null && dispatcher != Thread.CurrentThread)
-            {
-                dispatcher.Join(TimeSpan.FromSeconds(2));
-
-                if (!dispatcher.IsAlive && _dispatcher == dispatcher)
-                {
-                    _dispatcher = null;
-                }
-            }
         }
+
+        StopAndJoin();
     }
 
     /// <summary>Stops the watcher and releases its resources.</summary>
@@ -134,8 +117,41 @@ public sealed class FileWatcher : IDisposable
                 return;
             }
 
-            Stop();
             _disposed = true;
+        }
+
+        StopAndJoin();
+    }
+
+    /// <summary>
+    /// Stops the underlying watcher, signals the dispatcher to flush pending changes and exit,
+    /// then waits for it. The join runs outside <c>_lifecycleLock</c> so the dispatching thread
+    /// can take the lock to clear itself before exiting.
+    /// </summary>
+    private void StopAndJoin()
+    {
+        Thread? dispatcher;
+
+        lock (_lifecycleLock)
+        {
+            if (_watcher is null)
+            {
+                return;
+            }
+
+            _watcher.EnableRaisingEvents = false;
+            _watcher.Dispose();
+            _watcher = null;
+
+            _stopping = true;
+            _signal.Set();
+
+            dispatcher = _dispatcher;
+        }
+
+        if (dispatcher is not null && dispatcher != Thread.CurrentThread)
+        {
+            dispatcher.Join(TimeSpan.FromSeconds(2));
         }
     }
 
@@ -163,6 +179,7 @@ public sealed class FileWatcher : IDisposable
                     {
                         while (WaitForMore())
                         {
+                            DrainErrors();
                             batch.AddRange(DrainEvents());
                         }
                     }
@@ -191,6 +208,14 @@ public sealed class FileWatcher : IDisposable
     private bool WaitForMore()
     {
         _signal.Reset();
+
+        // An event enqueued between the last drain and the reset above would otherwise
+        // leave the signal clear while work is still pending.
+        if (!_events.IsEmpty || !_errors.IsEmpty)
+        {
+            return true;
+        }
+
         return !_stopping && _signal.Wait(_options.Debounce);
     }
 
